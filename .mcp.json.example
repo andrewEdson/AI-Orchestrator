@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "orchestrator": {
+      "command": "/absolute/path/to/this/repo/.venv/bin/python",
+      "args": ["-m", "orchestrator.mcp_server"],
+      "cwd": "/absolute/path/to/this/repo",
+      "env": {
+        "ORCHESTRATOR_OUTPUT_DIR": "/absolute/path/to/this/repo/outputs",
+        "ORCHESTRATOR_LOG_DIR": "/absolute/path/to/this/repo/logs",
+        "ORCHESTRATOR_WORKDIR": "/absolute/path/to/this/repo"
+      }
+    }
+  }
+}

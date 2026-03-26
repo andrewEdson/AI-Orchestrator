@@ -43,4 +43,7 @@ Thumbs.db
 .env.*
 !.env.example
 
-.claude/ 
+.claude/
+
+# MCP config has absolute paths — each dev generates their own
+.mcp.json
