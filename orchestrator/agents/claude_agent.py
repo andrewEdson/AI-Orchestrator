@@ -27,18 +27,12 @@ from orchestrator.agents.base_agent import AgentResult, BaseAgent
 
 
 # System prompt injected before every task to enforce structured, actionable output
-_SYSTEM_PROMPT = textwrap.dedent("""\
-    You are an expert software engineer executing a specific, well-defined task
-    as part of a larger automated workflow.
-
-    Rules:
-    - Produce complete, runnable code — no placeholders or TODO stubs.
-    - If creating a file, wrap the content in a fenced code block with the
-      filename as the language tag, e.g. ```python:src/auth.py
-    - After the code block(s), add a short "## Summary" section (≤5 bullet points).
-    - Do NOT ask clarifying questions — work with the information given.
-    - Do NOT include any preamble; start directly with the output.
-""")
+_SYSTEM_PROMPT = (
+    "Output complete, runnable code only. "
+    "Wrap each file in a fenced block: ```python:path/to/file.py. "
+    "End with a ## Summary section (≤5 bullets). "
+    "No placeholders. No preamble."
+)
 
 
 class ClaudeAgent(BaseAgent):
@@ -61,7 +55,12 @@ class ClaudeAgent(BaseAgent):
     # Public interface
     # ------------------------------------------------------------------
 
-    def execute(self, task: dict[str, Any], output_file: Optional[str] = None) -> AgentResult:
+    def execute(
+        self,
+        task: dict[str, Any],
+        output_file: Optional[str] = None,
+        dependency_context: Optional[dict[str, str]] = None,
+    ) -> AgentResult:
         """
         Send the task to Claude CLI and return the result.
 
@@ -70,8 +69,10 @@ class ClaudeAgent(BaseAgent):
             ---
             Task ID: <id>
             Task:    <description>
+            [Context: <project_context>]
+            [## Prior Task Outputs ...]
         """
-        prompt = self._build_prompt(task)
+        prompt = self._build_prompt(task, dependency_context=dependency_context)
 
         if self._mock:
             return self._mock_response(task, output_file)
@@ -113,7 +114,11 @@ class ClaudeAgent(BaseAgent):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_prompt(self, task: dict[str, Any]) -> str:
+    def _build_prompt(
+        self,
+        task: dict[str, Any],
+        dependency_context: Optional[dict[str, str]] = None,
+    ) -> str:
         lines = [
             _SYSTEM_PROMPT,
             "---",
@@ -122,6 +127,10 @@ class ClaudeAgent(BaseAgent):
         ]
         if task.get("context"):
             lines += ["", f"Context: {task['context']}"]
+        if dependency_context:
+            lines += ["", "## Prior Task Outputs (use these; do not re-generate)"]
+            for dep_id, summary in dependency_context.items():
+                lines += [f"### {dep_id}", summary.strip(), ""]
         return "\n".join(lines)
 
     def _run_subprocess(self, prompt: str) -> subprocess.CompletedProcess:

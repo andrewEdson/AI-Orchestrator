@@ -172,6 +172,7 @@ def main(
         retry_limit=retry_limit,
         dry_run=dry_run,
         verbose=verbose,
+        context_doc=plan.get("context_doc", ""),
     )
     executor.validator.use_claude_review = claude_review
 

@@ -265,6 +265,7 @@ def _execute_workflow(
         output_dir=_OUTPUT_DIR,
         max_workers=max_workers,
         retry_limit=retry_limit,
+        context_doc=plan.get("context_doc", ""),
     )
     summary = executor.run(plan)
     summary["run_id"] = run_id
@@ -299,6 +300,7 @@ def _resume_workflow(
         output_dir=_OUTPUT_DIR,
         max_workers=max_workers,
         retry_limit=retry_limit,
+        context_doc=plan.get("context_doc", ""),
     )
     summary = executor.run(plan)
     summary["run_id"] = run_id

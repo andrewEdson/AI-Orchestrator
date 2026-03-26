@@ -9,6 +9,7 @@ Design goals:
 
 from __future__ import annotations
 
+import os
 from typing import Optional, Type
 
 from orchestrator.agents.base_agent import BaseAgent
@@ -20,7 +21,8 @@ from orchestrator.agents.copilot_agent import CopilotAgent
 # Registry
 # ---------------------------------------------------------------------------
 # Maps task['type'] → agent class.
-# Add new agents here and nowhere else.
+# "medium" is handled specially in Router.get_agent() — it uses ClaudeAgent
+# with a cheaper model (haiku by default, override via CLAUDE_MEDIUM_MODEL).
 # ---------------------------------------------------------------------------
 AGENT_REGISTRY: dict[str, Type[BaseAgent]] = {
     "simple": CopilotAgent,
@@ -52,11 +54,24 @@ class Router:
         """
         Return the agent for the given task type.
 
+        'medium' maps to ClaudeAgent with a cheaper model (haiku).
         Falls back to ClaudeAgent if the type is not recognised.
         """
         normalised = task_type.lower().strip()
+        if normalised == "medium":
+            return self._get_or_create_medium()
         agent_cls = AGENT_REGISTRY.get(normalised, ClaudeAgent)
         return self._get_or_create(agent_cls)
+
+    def _get_or_create_medium(self) -> BaseAgent:
+        """Return a ClaudeAgent configured with the medium (haiku) model."""
+        cache_key = "claude-medium"
+        if cache_key not in self._cache:
+            model = os.environ.get("CLAUDE_MEDIUM_MODEL", "claude-haiku-4-5")
+            agent = ClaudeAgent(verbose=self.verbose, timeout=self.timeout, model=model)
+            agent.name = "claude-haiku"
+            self._cache[cache_key] = agent
+        return self._cache[cache_key]
 
     def get_escalation_agent(self) -> BaseAgent:
         """Return the escalation agent (always Claude)."""

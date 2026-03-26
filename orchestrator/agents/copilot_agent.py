@@ -28,11 +28,8 @@ from orchestrator.agents.base_agent import AgentResult, BaseAgent
 
 # Prefix injected before every task prompt so Copilot produces file-level output
 _TASK_PREFIX = (
-    "You are an expert software engineer. "
-    "Produce complete, production-quality code. "
-    "No placeholders, no TODO stubs. "
-    "Wrap output in a fenced code block with the filename as the language tag. "
-    "Task: "
+    "Complete, production-quality code. "
+    "Fenced block with filename tag. No placeholders. Task: "
 )
 
 
@@ -50,11 +47,20 @@ class CopilotAgent(BaseAgent):
     # Public interface
     # ------------------------------------------------------------------
 
-    def execute(self, task: dict[str, Any], output_file: Optional[str] = None) -> AgentResult:
+    def execute(
+        self,
+        task: dict[str, Any],
+        output_file: Optional[str] = None,
+        dependency_context: Optional[dict[str, str]] = None,
+    ) -> AgentResult:
         """
         Send the task to Copilot CLI and return the result.
         """
-        prompt = _TASK_PREFIX + task["task"]
+        ctx_prefix = ""
+        if dependency_context:
+            parts = [f"{tid}: {s[:200]}" for tid, s in dependency_context.items()]
+            ctx_prefix = "Prior work — " + " | ".join(parts) + "\n\n"
+        prompt = _TASK_PREFIX + ctx_prefix + task["task"]
 
         if self._mock:
             return self._mock_response(task, output_file)

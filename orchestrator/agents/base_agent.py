@@ -59,14 +59,21 @@ class BaseAgent(ABC):
         self.timeout = timeout  # seconds before a subprocess is killed
 
     @abstractmethod
-    def execute(self, task: dict[str, Any], output_file: Optional[str] = None) -> AgentResult:
+    def execute(
+        self,
+        task: dict[str, Any],
+        output_file: Optional[str] = None,
+        dependency_context: Optional[dict[str, str]] = None,
+    ) -> AgentResult:
         """
         Run the agent against a single task dict.
 
         Args:
-            task:        The task dict from the planner (must contain 'id' and 'task').
-            output_file: If provided, write raw output to this path in addition to
-                         returning it in AgentResult.
+            task:               The task dict from the planner (must contain 'id' and 'task').
+            output_file:        If provided, write raw output to this path in addition to
+                                returning it in AgentResult.
+            dependency_context: Optional {task_id: summary} of upstream task outputs to
+                                inject into the prompt so this agent doesn't re-explore.
 
         Returns:
             An AgentResult describing the outcome.

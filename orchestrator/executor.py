@@ -12,6 +12,7 @@ Flow per wave:
 
 from __future__ import annotations
 
+import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -29,6 +30,29 @@ from orchestrator.validator import Validator
 
 log = get_logger("orchestrator.executor")
 console = Console()
+
+
+def _extract_output_summary(output: str, max_words: int = 250) -> str:
+    """
+    Extract a compact summary from raw agent output.
+
+    Prefers the '## Summary' section (ClaudeAgent always writes one).
+    Falls back to extracting fenced code-block filenames.
+    Final fallback: first max_words words of the raw output.
+    """
+    match = re.search(r"##\s*Summary\s*\n([\s\S]+?)(?=\n##|\Z)", output, re.IGNORECASE)
+    if match:
+        words = match.group(1).strip().split()
+        return " ".join(words[:max_words])
+
+    headers = re.findall(r"```\w+:([^\n]+)", output)
+    if headers:
+        text = "Files written: " + ", ".join(headers)
+        words = text.split()
+        return " ".join(words[:max_words])
+
+    words = output.strip().split()
+    return " ".join(words[:max_words])
 
 
 class Executor:
@@ -54,6 +78,7 @@ class Executor:
         retry_limit: int = 3,
         dry_run: bool = False,
         verbose: bool = False,
+        context_doc: str = "",
     ) -> None:
         self.state = state
         self.router = router
@@ -63,6 +88,7 @@ class Executor:
         self.retry_limit = retry_limit
         self.dry_run = dry_run
         self.verbose = verbose
+        self.context_doc = context_doc
         self.validator = Validator(state=state, verbose=verbose)
 
     # ------------------------------------------------------------------
@@ -170,6 +196,18 @@ class Executor:
         task_type = task.get("type", "simple")
         output_file = str(self.output_dir / f"{task_id}.txt")
 
+        # Inject project context doc into task (reuses existing 'context' key)
+        enriched_task = dict(task)
+        if self.context_doc:
+            existing_ctx = task.get("context") or ""
+            enriched_task["context"] = (
+                f"[Project Context]\n{self.context_doc}\n\n{existing_ctx}".strip()
+            )
+
+        # Resolve summaries from upstream dependencies
+        dep_ids = task.get("dependencies", [])
+        dependency_context = self.state.get_dependency_summaries(dep_ids) if dep_ids else None
+
         agent = self.router.get_agent(task_type)
         self.state.mark_running(task_id, agent.name)
 
@@ -178,7 +216,11 @@ class Executor:
         for attempt in range(1, self.retry_limit + 1):
             log.debug("Task '%s': attempt %d/%d via %s", task_id, attempt, self.retry_limit, agent.name)
             try:
-                result = agent.execute(task, output_file=output_file)
+                result = agent.execute(
+                    enriched_task,
+                    output_file=output_file,
+                    dependency_context=dependency_context,
+                )
             except Exception as exc:  # noqa: BLE001
                 result = AgentResult(
                     success=False,
@@ -193,6 +235,7 @@ class Executor:
 
             if result.success:
                 self.state.mark_completed(task_id, output_file)
+                self.state.set_task_summary(task_id, _extract_output_summary(result.output))
                 return result
 
             log.warning(
@@ -213,7 +256,11 @@ class Executor:
             escalation_agent = self.router.get_escalation_agent()
             escalation_output_file = str(self.output_dir / f"{task_id}_escalated.txt")
             try:
-                result = escalation_agent.execute(task, output_file=escalation_output_file)
+                result = escalation_agent.execute(
+                    enriched_task,
+                    output_file=escalation_output_file,
+                    dependency_context=dependency_context,
+                )
             except Exception as exc:  # noqa: BLE001
                 result = AgentResult(
                     success=False,
@@ -225,6 +272,7 @@ class Executor:
 
             if result.success:
                 self.state.mark_completed(task_id, escalation_output_file)
+                self.state.set_task_summary(task_id, _extract_output_summary(result.output))
                 log.info("Task '%s' completed via escalation to Claude", task_id)
                 return result
             else:

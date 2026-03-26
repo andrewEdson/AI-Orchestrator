@@ -35,12 +35,14 @@ _PLANNER_SYSTEM_PROMPT = textwrap.dedent("""\
     3. Tasks in wave N+1 may depend on tasks from earlier waves.
     4. Assign type "simple" to tasks that are straightforward (single files,
        boilerplate, configs, small utilities).
-    5. Assign type "complex" to tasks involving architecture decisions,
-       multi-file features, security-sensitive code, or cross-cutting concerns.
-    6. Use snake_case task IDs (e.g. "setup_database_schema").
-    7. Keep each task atomic and independently executable — an agent must be
+    5. Assign type "medium" to tasks that span multiple files but follow
+       well-understood patterns (CRUD routes, model classes, test suites).
+    6. Assign type "complex" to tasks involving architecture decisions,
+       security-sensitive code, novel algorithms, or integration of 3+ dependencies.
+    7. Use snake_case task IDs (e.g. "setup_database_schema").
+    8. Keep each task atomic and independently executable — an agent must be
        able to complete it from the description alone.
-    8. Aim for 3-8 tasks per wave; more granular is better.
+    9. Aim for 3-8 tasks per wave; more granular is better.
 
     SCHEMA (strictly follow this):
     {
@@ -51,7 +53,7 @@ _PLANNER_SYSTEM_PROMPT = textwrap.dedent("""\
             {
               "id": "snake_case_unique_id",
               "task": "Specific, actionable task description",
-              "type": "simple" | "complex",
+              "type": "simple" | "medium" | "complex",
               "dependencies": []
             }
           ]
@@ -62,13 +64,28 @@ _PLANNER_SYSTEM_PROMPT = textwrap.dedent("""\
             {
               "id": "another_task_id",
               "task": "Depends on wave-1 output, so placed here",
-              "type": "simple",
+              "type": "medium",
               "dependencies": ["snake_case_unique_id"]
             }
           ]
         }
       ]
     }
+""")
+
+_CONTEXT_DOC_PROMPT = textwrap.dedent("""\
+    You are generating a shared context document for a multi-agent code generation run.
+    Given the user's request and task IDs below, produce a compact project context
+    document that every code-writing agent will receive.
+
+    Include ONLY:
+    - Project name and one-line description
+    - Primary language/framework
+    - Key shared interfaces, types, or module names agents must use consistently
+    - File layout conventions (e.g. "all models in src/models/")
+    - Any shared constants or config keys
+
+    Limit: 150 words maximum. No preamble. Plain bullet points only.
 """)
 
 
@@ -118,6 +135,7 @@ class Planner:
         log.info("Generating plan via Claude…")
         raw = self._call_claude(prompt)
         plan = self._parse_and_validate(raw)
+        plan["context_doc"] = self._generate_context_doc(prompt, plan)
         self._save_plan(plan)
         return plan
 
@@ -182,6 +200,39 @@ class Planner:
 
         _validate_plan_schema(plan)
         return plan
+
+    def _generate_context_doc(self, prompt: str, plan: dict[str, Any]) -> str:
+        """Generate a compact project context document to orient every agent."""
+        if self.mock:
+            return f"Project: {prompt[:80]}. Language: Python."
+
+        task_ids = [t["id"] for w in plan["waves"] for t in w["tasks"]]
+        full_prompt = (
+            f"{_CONTEXT_DOC_PROMPT}\n\n"
+            f"User request: {prompt}\n\n"
+            f"Task IDs: {', '.join(task_ids)}"
+        )
+        cmd = [self.claude_cli, "--print", full_prompt]
+        if self.model:
+            cmd += ["--model", self.model]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                doc = result.stdout.strip()
+                # Hard cap: ~375 tokens
+                words = doc.split()
+                return " ".join(words[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+        log.warning("Context doc generation failed — proceeding without it")
+        return ""
 
     def _save_plan(self, plan: dict[str, Any]) -> None:
         with open(self._plan_path, "w", encoding="utf-8") as fh:
@@ -268,10 +319,10 @@ def _validate_plan_schema(plan: dict[str, Any]) -> None:
             for required in ("id", "task", "type"):
                 if required not in task:
                     raise ValueError(f"Task missing required key '{required}': {task}")
-            if task["type"] not in ("simple", "complex"):
+            if task["type"] not in ("simple", "medium", "complex"):
                 raise ValueError(
                     f"Task '{task['id']}' has invalid type '{task['type']}'. "
-                    "Expected 'simple' or 'complex'."
+                    "Expected 'simple', 'medium', or 'complex'."
                 )
             if task["id"] in seen_ids:
                 raise ValueError(f"Duplicate task ID: '{task['id']}'")

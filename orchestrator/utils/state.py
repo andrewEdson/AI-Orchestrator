@@ -91,6 +91,7 @@ class StateManager:
                         "started_at": None,
                         "finished_at": None,
                         "output_file": None,
+                        "output_summary": None,
                         "error": None,
                     }
         self.save()
@@ -101,6 +102,22 @@ class StateManager:
 
     def mark_running(self, task_id: str, agent: str) -> None:
         self._update_task(task_id, status="running", agent=agent, started_at=time.time())
+
+    def set_task_summary(self, task_id: str, summary: str) -> None:
+        """Store a compact output summary for use by downstream dependents."""
+        self._update_task(task_id, output_summary=summary)
+
+    def get_task_summary(self, task_id: str) -> Optional[str]:
+        return self._state["tasks"][task_id].get("output_summary")
+
+    def get_dependency_summaries(self, dep_ids: list[str]) -> dict[str, str]:
+        """Return {task_id: summary} for all completed dependencies that have summaries."""
+        return {
+            dep_id: self._state["tasks"][dep_id]["output_summary"]
+            for dep_id in dep_ids
+            if dep_id in self._state["tasks"]
+            and self._state["tasks"][dep_id].get("output_summary")
+        }
 
     def mark_completed(self, task_id: str, output_file: str) -> None:
         self._update_task(
