@@ -1,0 +1,94 @@
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": [
+        {
+          "id": "setup_project_structure",
+          "task": "Create a FastAPI project layout: pyproject.toml, src/app/__init__.py, src/app/main.py (app factory only), Dockerfile, .env.example, and a Makefile with run/lint/test targets.",
+          "type": "simple",
+          "dependencies": []
+        },
+        {
+          "id": "write_database_schema",
+          "task": "Write SQLAlchemy 2.x models for User (id, email, hashed_password, created_at) and RefreshToken (id, user_id FK, token_hash, expires_at, revoked). Include Alembic migration boilerplate.",
+          "type": "complex",
+          "dependencies": []
+        },
+        {
+          "id": "write_config_module",
+          "task": "Write a Pydantic BaseSettings config class (src/app/config.py) that reads DATABASE_URL, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, and REFRESH_TOKEN_EXPIRE_DAYS from environment variables.",
+          "type": "simple",
+          "dependencies": []
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "tasks": [
+        {
+          "id": "implement_auth_service",
+          "task": "Implement src/app/auth/service.py: password hashing (bcrypt via passlib), JWT access token creation/verification (python-jose), and refresh token rotation logic. Use the User and RefreshToken models from write_database_schema.",
+          "type": "complex",
+          "dependencies": [
+            "write_database_schema",
+            "write_config_module"
+          ]
+        },
+        {
+          "id": "write_user_repository",
+          "task": "Write src/app/users/repository.py with async SQLAlchemy functions: get_by_id, get_by_email, create_user, update_password. Use the User model from write_database_schema.",
+          "type": "simple",
+          "dependencies": [
+            "write_database_schema"
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "tasks": [
+        {
+          "id": "write_auth_routes",
+          "task": "Write src/app/auth/router.py with FastAPI endpoints: POST /auth/register, POST /auth/login (returns access + refresh tokens), POST /auth/refresh, POST /auth/logout. Use implement_auth_service and write_user_repository.",
+          "type": "complex",
+          "dependencies": [
+            "implement_auth_service",
+            "write_user_repository"
+          ]
+        },
+        {
+          "id": "write_middleware",
+          "task": "Write src/app/middleware.py with a FastAPI dependency get_current_user that validates the JWT Bearer token and returns the active User. Include an optional require_admin dependency.",
+          "type": "simple",
+          "dependencies": [
+            "implement_auth_service",
+            "write_user_repository"
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "tasks": [
+        {
+          "id": "write_tests",
+          "task": "Write pytest tests in tests/test_auth.py covering: successful register, duplicate email error, successful login, invalid password, token refresh, and logout. Use httpx AsyncClient against the FastAPI app.",
+          "type": "complex",
+          "dependencies": [
+            "write_auth_routes",
+            "write_middleware"
+          ]
+        },
+        {
+          "id": "write_readme",
+          "task": "Write a README.md with: project overview, prerequisites, quickstart (make run), API reference table for all auth endpoints, and environment variable documentation.",
+          "type": "simple",
+          "dependencies": [
+            "write_auth_routes"
+          ]
+        }
+      ]
+    }
+  ]
+}
