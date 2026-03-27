@@ -114,6 +114,7 @@ class CopilotAgent(BaseAgent):
         cmd = [self.cli_path, "copilot", "--", "-p", prompt, "-s", "--no-ask-user"]
         return subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=self.timeout,

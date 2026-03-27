@@ -141,6 +141,7 @@ class ClaudeAgent(BaseAgent):
 
         return subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=self.timeout,
