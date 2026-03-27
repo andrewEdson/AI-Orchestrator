@@ -76,7 +76,7 @@ class Executor:
         router: Router,
         output_dir: str = "outputs",
         target_dir: str = ".",
-        max_workers: int = 4,
+        max_workers: int = 8,
         retry_limit: int = 3,
         dry_run: bool = False,
         verbose: bool = False,
@@ -253,7 +253,7 @@ class Executor:
                 "Task '%s' attempt %d failed (exit=%d): %s",
                 task_id, attempt, result.exit_code, result.stderr[:120],
             )
-            time.sleep(min(2 ** (attempt - 1), 8))  # exponential back-off, cap 8s
+            time.sleep(min(2 ** (attempt - 1), 2))  # exponential back-off, cap 2s
 
         # ----------------------------------------------------------------
         # Escalation: only for non-Claude tasks

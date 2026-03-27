@@ -55,7 +55,7 @@ console = Console()
 def main(
     prompt: str = typer.Argument(..., help="High-level task description to orchestrate."),
     max_workers: int = typer.Option(
-        4, "--max-workers", "-w", min=1, max=32,
+        8, "--max-workers", "-w", min=1, max=32,
         help="Maximum parallel agent workers per wave.",
     ),
     retry_limit: int = typer.Option(
