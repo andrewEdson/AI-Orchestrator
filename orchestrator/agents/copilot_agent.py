@@ -1,20 +1,19 @@
 """
 GitHub Copilot CLI agent.
 
-Wraps `gh copilot suggest` for lightweight, "simple" code generation tasks.
+Wraps `gh copilot -- -p "<prompt>" -s --no-ask-user` for lightweight,
+"simple" code generation tasks.
 
 CLI contract assumed:
-    gh copilot suggest -t code "<prompt>"
-    → writes suggestion to stdout, exits 0 on success
+    gh copilot -- -p "<prompt>" -s --no-ask-user
+    → writes response to stdout, exits 0 on success
+
+Requires gh >= 2.86.0 (copilot built-in, no extension needed):
+    brew install gh && gh auth login
 
 Environment variable overrides:
     GH_CLI_PATH      — path to the gh binary (default: "gh")
     COPILOT_MOCK     — if set to "1", return a canned mock response
-
-Notes on `gh copilot suggest` target types:
-    -t shell   → shell one-liners / scripts
-    -t code    → general code (default used here)
-    -t explain → explanations (not used for generation)
 """
 
 from __future__ import annotations
@@ -27,10 +26,13 @@ from typing import Any, Optional
 
 from orchestrator.agents.base_agent import AgentResult, BaseAgent
 
-# Prefix injected before every task prompt so Copilot produces file-level output
+# Prefix injected before every task prompt so Copilot produces file-level output.
+# The exact fence format (```lang:path/to/file) is required by the materializer.
 _TASK_PREFIX = (
-    "Complete, production-quality code. "
-    "Fenced block with filename tag. No placeholders. Task: "
+    "Output complete, production-quality code only. "
+    "Wrap every file in a fenced code block with the filename tag, "
+    "for example: ```python:src/utils.py — the filename after the colon is required. "
+    "No placeholders. No preamble. Task: "
 )
 
 
@@ -75,8 +77,7 @@ class CopilotAgent(BaseAgent):
                 output="",
                 stderr=(
                     f"GitHub CLI not found at '{self.cli_path}'. "
-                    "Install with: brew install gh  &&  gh auth login  &&  "
-                    "gh extension install github/gh-copilot"
+                    "Install with: brew install gh  &&  gh auth login"
                 ),
                 exit_code=127,
                 agent_name=self.name,
@@ -110,7 +111,7 @@ class CopilotAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     def _run_subprocess(self, prompt: str) -> subprocess.CompletedProcess:
-        cmd = [self.cli_path, "copilot", "suggest", "-t", "code", prompt]
+        cmd = [self.cli_path, "copilot", "--", "-p", prompt, "-s", "--no-ask-user"]
         return subprocess.run(
             cmd,
             capture_output=True,
