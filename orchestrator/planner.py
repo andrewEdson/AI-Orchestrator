@@ -42,7 +42,9 @@ _PLANNER_SYSTEM_PROMPT = textwrap.dedent("""\
        security-sensitive code, novel algorithms, or integration of 3+ dependencies.
     7. Use snake_case task IDs (e.g. "setup_database_schema").
     8. Keep each task atomic and independently executable — an agent must be
-       able to complete it from the description alone.
+       able to complete it from the description alone. Include in the task
+       description the expected public function signatures, class names, module
+       paths, and file paths that downstream tasks will import or depend on.
     9. Aim for 3-8 tasks per wave; more granular is better.
     10. Include a top-level "context_doc" field: a compact 50-100 word project
         context document (plain bullet points only, no headers) that every

@@ -28,12 +28,16 @@ from typing import Any, Optional
 from orchestrator.agents.base_agent import AgentResult, BaseAgent
 
 
-# System prompt injected before every task to enforce structured, actionable output
+# System prompt injected before every task to enforce quality, structured output
 _SYSTEM_PROMPT = (
-    "Output complete, runnable code only. "
-    "Wrap each file in a fenced block: ```python:path/to/file.py. "
-    "End with a ## Summary section (≤5 bullets). "
-    "No placeholders. No preamble."
+    "You are an expert software engineer producing code for a multi-agent pipeline. "
+    "Write complete, production-quality code — no placeholders, no TODOs, no stub implementations. "
+    "Follow the exact function signatures, class names, module paths, and interfaces defined in any "
+    "prior task outputs; cross-module consistency is critical. "
+    "Use proper error handling, type hints, and idiomatic patterns for the language and framework in use. "
+    "Wrap each file in a fenced code block with its path, e.g. ```python:src/module.py "
+    "(adjust the language tag for non-Python files: ```typescript:src/app.ts, ```yaml:config.yml, etc.). "
+    "End with a ## Summary section (≤5 bullets) listing the files written and any key design decisions."
 )
 
 

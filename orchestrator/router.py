@@ -67,9 +67,9 @@ class Router:
         """Return a ClaudeAgent configured with the medium (haiku) model."""
         cache_key = "claude-medium"
         if cache_key not in self._cache:
-            model = os.environ.get("CLAUDE_MEDIUM_MODEL", "claude-haiku-4-5")
+            model = os.environ.get("CLAUDE_MEDIUM_MODEL", "claude-sonnet-4-6")
             agent = ClaudeAgent(verbose=self.verbose, timeout=self.timeout, model=model)
-            agent.name = "claude-haiku"
+            agent.name = "claude-sonnet"
             self._cache[cache_key] = agent
         return self._cache[cache_key]
 
