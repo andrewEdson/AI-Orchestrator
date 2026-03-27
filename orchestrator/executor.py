@@ -29,7 +29,7 @@ from orchestrator.utils.task_graph import TaskGraph
 from orchestrator.validator import Validator
 
 log = get_logger("orchestrator.executor")
-console = Console()
+console = Console(stderr=True)
 
 
 def _extract_output_summary(output: str, max_words: int = 250) -> str:

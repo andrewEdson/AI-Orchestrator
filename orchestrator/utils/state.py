@@ -128,12 +128,10 @@ class StateManager:
         )
 
     def mark_failed(self, task_id: str, error: str) -> None:
-        t = self._state["tasks"][task_id]
         self._update_task(
             task_id,
             status="failed",
             error=error,
-            attempts=t["attempts"] + 1,
             finished_at=time.time(),
         )
 
@@ -176,9 +174,13 @@ class StateManager:
     def _update_task(self, task_id: str, **fields: Any) -> None:
         if task_id not in self._state["tasks"]:
             raise KeyError(f"Unknown task ID: {task_id}")
-        # Update the in-memory dict, then flush. save() acquires its own lock.
-        self._state["tasks"][task_id].update(fields)
-        self.save()  # save() is internally thread-safe
+        with self._lock:
+            self._state["tasks"][task_id].update(fields)
+            self._state["updated_at"] = time.time()
+            tmp = self._path.with_name(f"{self._path.stem}_{uuid.uuid4().hex[:8]}.tmp")
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(self._state, fh, indent=2)
+            tmp.replace(self._path)
 
     # ------------------------------------------------------------------
     # Convenience queries

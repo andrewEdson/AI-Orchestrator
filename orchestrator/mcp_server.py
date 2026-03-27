@@ -23,7 +23,6 @@ import json
 import os
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
@@ -42,14 +41,14 @@ mcp = FastMCP(
     ),
 )
 
-# Thread pool for running the synchronous orchestrator engine without
-# blocking FastMCP's async event loop.
-_thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="orch-worker")
-
-# Default paths — can be overridden via env vars
-_OUTPUT_DIR = os.environ.get("ORCHESTRATOR_OUTPUT_DIR", "./outputs")
-_LOG_DIR = os.environ.get("ORCHESTRATOR_LOG_DIR", "./logs")
+# Default paths — resolved to absolute so CWD changes never affect them.
 _WORKDIR = os.environ.get("ORCHESTRATOR_WORKDIR", str(Path(__file__).parent.parent))
+_OUTPUT_DIR = os.environ.get(
+    "ORCHESTRATOR_OUTPUT_DIR", str(Path(_WORKDIR) / "outputs")
+)
+_LOG_DIR = os.environ.get(
+    "ORCHESTRATOR_LOG_DIR", str(Path(_WORKDIR) / "logs")
+)
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +83,7 @@ def run_workflow(
         os.environ["CLAUDE_MOCK"] = "1"
         os.environ["COPILOT_MOCK"] = "1"
 
-    return _run_in_workdir(_execute_workflow, prompt, max_workers, retry_limit, False)
+    return _execute_workflow(prompt, max_workers, retry_limit, False)
 
 
 @mcp.tool
@@ -101,7 +100,7 @@ def dry_run_workflow(prompt: str) -> str:
     Returns:
         A formatted string showing the wave-by-wave task breakdown.
     """
-    return _run_in_workdir(_execute_workflow, prompt, 4, 3, True)
+    return _execute_workflow(prompt, 4, 3, True)
 
 
 @mcp.tool
@@ -134,7 +133,7 @@ def get_run_status(run_id: str) -> str:
             "counts": status_counts,
             "tasks": {
                 tid: {
-                    "status": t["status"],
+                    "status": t.get("status", "pending"),
                     "agent": t.get("agent"),
                     "attempts": t.get("attempts", 0),
                     "output_file": t.get("output_file"),
@@ -169,8 +168,8 @@ def list_runs(limit: int = 10) -> str:
         try:
             data = json.loads(sf.read_text(encoding="utf-8"))
             tasks = data.get("tasks", {})
-            completed = sum(1 for t in tasks.values() if t["status"] == "completed")
-            failed = sum(1 for t in tasks.values() if t["status"] == "failed")
+            completed = sum(1 for t in tasks.values() if t.get("status") == "completed")
+            failed = sum(1 for t in tasks.values() if t.get("status") == "failed")
             runs.append(
                 {
                     "run_id": data.get("run_id", sf.stem.replace("_state", "")),
@@ -203,22 +202,12 @@ def resume_run(run_id: str, prompt: str, max_workers: int = 4, retry_limit: int 
     Returns:
         JSON string with the final run summary.
     """
-    return _run_in_workdir(_resume_workflow, run_id, prompt, max_workers, retry_limit)
+    return _resume_workflow(run_id, prompt, max_workers, retry_limit)
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers — these run in the thread pool
+# Internal helpers
 # ---------------------------------------------------------------------------
-
-def _run_in_workdir(fn, *args, **kwargs) -> str:
-    """Change to the project workdir before running fn (important for relative paths)."""
-    original_dir = os.getcwd()
-    try:
-        os.chdir(_WORKDIR)
-        return fn(*args, **kwargs)
-    finally:
-        os.chdir(original_dir)
-
 
 def _execute_workflow(
     prompt: str,

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import textwrap
 import time
 from typing import Any, Optional
@@ -99,7 +100,7 @@ class ClaudeAgent(BaseAgent):
         self._write_output(output_file, output)
 
         if self.verbose:
-            print(f"[claude] task={task['id']} exit={result.returncode} dur={duration:.1f}s")
+            print(f"[claude] task={task['id']} exit={result.returncode} dur={duration:.1f}s", file=sys.stderr)
 
         return AgentResult(
             success=success,
