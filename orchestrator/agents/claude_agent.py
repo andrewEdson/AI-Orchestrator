@@ -135,7 +135,7 @@ class ClaudeAgent(BaseAgent):
         return "\n".join(lines)
 
     def _run_subprocess(self, prompt: str) -> subprocess.CompletedProcess:
-        cmd = [self.cli_path, "--print", prompt]
+        cmd = [self.cli_path, "--print", "--dangerously-skip-permissions", prompt]
         if self.model:
             cmd += ["--model", self.model]
 

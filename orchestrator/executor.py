@@ -24,6 +24,7 @@ from rich.table import Table
 from orchestrator.agents.base_agent import AgentResult
 from orchestrator.router import Router
 from orchestrator.utils.logger import get_logger
+from orchestrator.utils.materializer import materialize
 from orchestrator.utils.state import StateManager
 from orchestrator.utils.task_graph import TaskGraph
 from orchestrator.validator import Validator
@@ -74,6 +75,7 @@ class Executor:
         state: StateManager,
         router: Router,
         output_dir: str = "outputs",
+        target_dir: str = ".",
         max_workers: int = 4,
         retry_limit: int = 3,
         dry_run: bool = False,
@@ -84,6 +86,7 @@ class Executor:
         self.router = router
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.target_dir = Path(target_dir).resolve()
         self.max_workers = max_workers
         self.retry_limit = retry_limit
         self.dry_run = dry_run
@@ -236,6 +239,14 @@ class Executor:
             if result.success:
                 self.state.mark_completed(task_id, output_file)
                 self.state.set_task_summary(task_id, _extract_output_summary(result.output))
+                written = materialize(result.output, self.target_dir)
+                if written:
+                    log.info(
+                        "Task '%s': materialized %d file(s) → %s",
+                        task_id,
+                        len(written),
+                        [str(p.relative_to(self.target_dir)) for p in written],
+                    )
                 return result
 
             log.warning(
@@ -273,6 +284,14 @@ class Executor:
             if result.success:
                 self.state.mark_completed(task_id, escalation_output_file)
                 self.state.set_task_summary(task_id, _extract_output_summary(result.output))
+                written = materialize(result.output, self.target_dir)
+                if written:
+                    log.info(
+                        "Task '%s' (escalated): materialized %d file(s) → %s",
+                        task_id,
+                        len(written),
+                        [str(p.relative_to(self.target_dir)) for p in written],
+                    )
                 log.info("Task '%s' completed via escalation to Claude", task_id)
                 return result
             else:

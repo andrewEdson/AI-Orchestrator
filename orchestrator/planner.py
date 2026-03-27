@@ -148,7 +148,7 @@ class Planner:
             return self._mock_plan(prompt)
 
         full_prompt = f"{_PLANNER_SYSTEM_PROMPT}\n\nUser request: {prompt}"
-        cmd = [self.claude_cli, "--print", full_prompt]
+        cmd = [self.claude_cli, "--print", "--dangerously-skip-permissions", full_prompt]
         if self.model:
             cmd += ["--model", self.model]
 
@@ -212,7 +212,7 @@ class Planner:
             f"User request: {prompt}\n\n"
             f"Task IDs: {', '.join(task_ids)}"
         )
-        cmd = [self.claude_cli, "--print", full_prompt]
+        cmd = [self.claude_cli, "--print", "--dangerously-skip-permissions", full_prompt]
         if self.model:
             cmd += ["--model", self.model]
 

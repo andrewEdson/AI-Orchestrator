@@ -49,6 +49,9 @@ _OUTPUT_DIR = os.environ.get(
 _LOG_DIR = os.environ.get(
     "ORCHESTRATOR_LOG_DIR", str(Path(_WORKDIR) / "logs")
 )
+# Directory where generated source files are written (defaults to CWD so files
+# land in the project the user has open when they invoke the tool).
+_TARGET_DIR = os.environ.get("ORCHESTRATOR_TARGET_DIR", str(Path.cwd()))
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +61,7 @@ _LOG_DIR = os.environ.get(
 @mcp.tool
 def run_workflow(
     prompt: str,
+    target_dir: str = "",
     max_workers: int = 4,
     retry_limit: int = 3,
     mock: bool = False,
@@ -72,6 +76,8 @@ def run_workflow(
 
     Args:
         prompt:      The software project or task to build.
+        target_dir:  Directory where generated files are written. Defaults to the
+                     current working directory (i.e. the project you have open).
         max_workers: Max parallel agent tasks per wave (default 4).
         retry_limit: Retries before escalating a failing task to Claude (default 3).
         mock:        Use mock agents — no live CLI calls (useful for testing).
@@ -83,7 +89,8 @@ def run_workflow(
         os.environ["CLAUDE_MOCK"] = "1"
         os.environ["COPILOT_MOCK"] = "1"
 
-    return _execute_workflow(prompt, max_workers, retry_limit, False)
+    resolved_target = target_dir or _TARGET_DIR
+    return _execute_workflow(prompt, resolved_target, max_workers, retry_limit, False)
 
 
 @mcp.tool
@@ -100,7 +107,7 @@ def dry_run_workflow(prompt: str) -> str:
     Returns:
         A formatted string showing the wave-by-wave task breakdown.
     """
-    return _execute_workflow(prompt, 4, 3, True)
+    return _execute_workflow(prompt, _TARGET_DIR, 4, 3, True)
 
 
 @mcp.tool
@@ -211,6 +218,7 @@ def resume_run(run_id: str, prompt: str, max_workers: int = 4, retry_limit: int 
 
 def _execute_workflow(
     prompt: str,
+    target_dir: str,
     max_workers: int,
     retry_limit: int,
     dry_run: bool,
@@ -252,12 +260,14 @@ def _execute_workflow(
         state=state,
         router=router,
         output_dir=_OUTPUT_DIR,
+        target_dir=target_dir,
         max_workers=max_workers,
         retry_limit=retry_limit,
         context_doc=plan.get("context_doc", ""),
     )
     summary = executor.run(plan)
     summary["run_id"] = run_id
+    summary["target_dir"] = target_dir
     return json.dumps(summary, indent=2)
 
 
@@ -287,6 +297,7 @@ def _resume_workflow(
         state=state,
         router=router,
         output_dir=_OUTPUT_DIR,
+        target_dir=_TARGET_DIR,
         max_workers=max_workers,
         retry_limit=retry_limit,
         context_doc=plan.get("context_doc", ""),
