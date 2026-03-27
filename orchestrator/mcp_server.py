@@ -62,8 +62,9 @@ _TARGET_DIR = os.environ.get("ORCHESTRATOR_TARGET_DIR", str(Path.cwd()))
 def run_workflow(
     prompt: str,
     target_dir: str = "",
-    max_workers: int = 4,
+    max_workers: int = 8,
     retry_limit: int = 3,
+    planner_timeout: int = 300,
     mock: bool = False,
 ) -> str:
     """
@@ -78,9 +79,10 @@ def run_workflow(
         prompt:      The software project or task to build.
         target_dir:  Directory where generated files are written. Defaults to the
                      current working directory (i.e. the project you have open).
-        max_workers: Max parallel agent tasks per wave (default 4).
-        retry_limit: Retries before escalating a failing task to Claude (default 3).
-        mock:        Use mock agents — no live CLI calls (useful for testing).
+        max_workers:      Max parallel agent tasks per wave (default 8).
+        retry_limit:      Retries before escalating a failing task to Claude (default 3).
+        planner_timeout:  Seconds to wait for the planner to produce a plan (default 300).
+        mock:             Use mock agents — no live CLI calls (useful for testing).
 
     Returns:
         A JSON string containing the run summary with task statuses and output paths.
@@ -90,7 +92,7 @@ def run_workflow(
         os.environ["COPILOT_MOCK"] = "1"
 
     resolved_target = target_dir or _TARGET_DIR
-    return _execute_workflow(prompt, resolved_target, max_workers, retry_limit, False)
+    return _execute_workflow(prompt, resolved_target, max_workers, retry_limit, False, planner_timeout)
 
 
 @mcp.tool
@@ -107,7 +109,7 @@ def dry_run_workflow(prompt: str) -> str:
     Returns:
         A formatted string showing the wave-by-wave task breakdown.
     """
-    return _execute_workflow(prompt, _TARGET_DIR, 4, 3, True)
+    return _execute_workflow(prompt, _TARGET_DIR, 8, 3, True, 300)
 
 
 @mcp.tool
@@ -222,6 +224,7 @@ def _execute_workflow(
     max_workers: int,
     retry_limit: int,
     dry_run: bool,
+    planner_timeout: int = 300,
 ) -> str:
     """Core workflow execution — runs synchronously in a thread."""
     from orchestrator.executor import Executor
@@ -235,7 +238,7 @@ def _execute_workflow(
     state = StateManager(run_id=run_id, log_dir=_LOG_DIR)
     state.set_prompt(prompt)
 
-    planner = Planner(run_id=run_id, log_dir=_LOG_DIR)
+    planner = Planner(run_id=run_id, log_dir=_LOG_DIR, timeout=planner_timeout)
     try:
         plan = planner.plan(prompt)
     except (RuntimeError, ValueError) as exc:

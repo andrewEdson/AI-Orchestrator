@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tempfile
 import textwrap
 import time
 from pathlib import Path
@@ -149,13 +150,15 @@ class Planner:
 
         start = time.monotonic()
         try:
-            result = subprocess.run(
-                cmd,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-            )
+            with tempfile.TemporaryDirectory() as isolated_cwd:
+                result = subprocess.run(
+                    cmd,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout,
+                    cwd=isolated_cwd,
+                )
         except FileNotFoundError as exc:
             raise RuntimeError(
                 f"Claude CLI not found at '{self.claude_cli}'. "

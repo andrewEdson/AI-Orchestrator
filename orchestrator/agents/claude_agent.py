@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 from typing import Any, Optional
@@ -139,13 +140,18 @@ class ClaudeAgent(BaseAgent):
         if self.model:
             cmd += ["--model", self.model]
 
-        return subprocess.run(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=self.timeout,
-        )
+        # Use an isolated temp dir as CWD so concurrent subprocesses each get
+        # their own ~/.claude/projects/<cwd-hash>/ state directory and don't
+        # serialize on the same project-state files.
+        with tempfile.TemporaryDirectory() as isolated_cwd:
+            return subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                cwd=isolated_cwd,
+            )
 
     def _mock_response(self, task: dict[str, Any], output_file: Optional[str]) -> AgentResult:
         output = (
